@@ -12,7 +12,7 @@ REQUIREMENTS = [
 ]
 
 setup(
-	name		= 'domaincheck',
+	name		= 'domaincheck-fork',
 	version		= '0.1',
 	description	= 'check security aspects of a second-level domain name',
 	long_description= readme,
