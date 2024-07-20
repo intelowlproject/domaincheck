@@ -162,33 +162,37 @@ def getResolver(resolver):
 
 
 def lookup(dns_aspect, domain_name, rr, pattern=""):
+    global RESULT
     data = None
 
-    if 'timeout' in RESULT[domain]:
+    if domain_name not in RESULT:
+        RESULT[domain_name] = {}
+
+    if 'timeout' in RESULT[domain_name]:
         return
 
-    verbose("Checking '{:s}' for domain '{:s}'...".format(dns_aspect, domain), 2)
+    verbose("Checking '{:s}' for domain '{:s}'...".format(dns_aspect, domain_name), 2)
     try:
         data = RESOLVER.resolve(domain_name, rr)
     except dns.resolver.LifetimeTimeout:
-        RESULT[domain]['timeout'] = True
+        RESULT[domain_name]['timeout'] = True
         print("DNS query for {:s} {:s} timed out.".format(domain_name, rr), file=sys.stderr)
     except Exception as e:
         if VERBOSITY > 3:
             print("Lookup Exception:", e, file=sys.stderr)
         return
 
-    if data != None:
+    if data is not None:
         for result in data:
             pattern_found = (pattern and (pattern in str(result)))
 
             if pattern == "" or pattern_found:
                 result = str(result).strip('\"')
-                if dns_aspect in RESULT[domain]:
-                    RESULT[domain][dns_aspect]['count'] += 1
-                    RESULT[domain][dns_aspect]['value'].append(result)
+                if dns_aspect in RESULT[domain_name]:
+                    RESULT[domain_name][dns_aspect]['count'] += 1
+                    RESULT[domain_name][dns_aspect]['value'].append(result)
                 else:
-                    RESULT[domain][dns_aspect] = {
+                    RESULT[domain_name][dns_aspect] = {
                         'count': 1,
                         'value': [result]
                     }
@@ -196,15 +200,62 @@ def lookup(dns_aspect, domain_name, rr, pattern=""):
         if data.rdtype == dns.rdatatype.DNSKEY:
             validateDNSSEC(domain_name)
 
-    return True
-        
+    return True      
+
+def lookup2(dns_aspect, domain_name, rr, pattern=""):
+    result = {}
+    data = None
+
+    result[domain_name] = {}
+
+    if 'timeout' in result[domain_name]:
+        return
+
+    try:
+        r = dns.resolver.Resolver()
+        r.timeout = 1
+        r.lifetime = 1
+        r.nameservers = ["8.8.8.8"]
+        data = r.resolve(domain_name, rr)
+    except dns.resolver.LifetimeTimeout:
+        result[domain_name]['timeout'] = True
+        print("DNS query for {:s} {:s} timed out.".format(domain_name, rr), file=sys.stderr)
+    except Exception as e:
+        if VERBOSITY > 3:
+            print("Lookup Exception:", e, file=sys.stderr)
+        return
+    if data is not None:
+        for results in data:
+            pattern_found = (pattern and (pattern in str(results)))
+            if pattern == "" or pattern_found:
+                results = str(results).strip('\"')
+                
+                if dns_aspect in result[domain_name]:
+                    result[domain_name][dns_aspect]['count'] += 1
+                    result[domain_name][dns_aspect]['value'].append(results)
+                else:
+                    result[domain_name][dns_aspect] = {
+                        'count': 1,
+                        'value': [results]
+                    }
+        if data.rdtype == dns.rdatatype.DNSKEY:
+            validateDNSSEC(domain_name)
+    
+    return result      
+
 
 def performAllChecks(domain):
     for key in LOOKUPS.keys():
         config = LOOKUPS[key]
         lookup(key, config['domain_prefix'] + domain,
                config['rr'], config['pattern'])
-
+def performAllChecks2(domain):
+    result={}
+    for key in LOOKUPS.keys():
+        config = LOOKUPS[key]
+        result[key]=lookup2(key, config['domain_prefix'] + domain,
+               config['rr'], config['pattern'])
+    return(result)
 
 def printCsv(domain, lineNum):
     if lineNum == 1:
@@ -335,6 +386,33 @@ def verbose(msg, level=1):
 ###
 # Main
 ###
+def main(domains, lookup_types=None, output_format='json', resolver=None, verbosity=0):
+        
+        global LOOKUPS_WANTED, OUTPUT_FORMAT, RESOLVER, VERBOSITY
+        LOOKUPS_WANTED = lookup_types or ['all']
+        OUTPUT_FORMAT = output_format
+        RESOLVER = getResolver(resolver)
+        VERBOSITY = verbosity
+        result= {}
+        for domain in domains:
+            verbose(f"Checking domain '{domain}'...")
+            if 'all' in LOOKUPS_WANTED:
+                result[domain]=performAllChecks2(domain)
+            else:
+                for l in LOOKUPS_WANTED:
+                    config = LOOKUPS[l]
+                    result[l]=lookup2(l, config['domain_prefix'] + domain,
+                        config['rr'], config['pattern'])
+        
+        if OUTPUT_FORMAT == 'json':
+                try:
+                    j = json.dumps(result   , indent = 2)
+                except BaseException as err:
+                    print("Unable to jsonify result?\n{:s}".format(err), file=sys.stderr)
+                    sys.exit(EXIT_FAILURE)
+                return(j)
+
+        else: "only json output is supported"
 if __name__ == "__main__":
 
     getopts()
