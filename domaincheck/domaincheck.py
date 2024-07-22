@@ -17,7 +17,7 @@ EXIT_FAILURE = 1
 EXIT_SUCCESS = 0
 
 PROGNAME = 'domaincheck'
-VERSION = '0.5'
+VERSION = '0.5.2'
 
 # A data structure to hold our findings.
 # This conveniently serializes directly to JSON.
