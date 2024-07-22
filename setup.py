@@ -13,7 +13,7 @@ REQUIREMENTS = [
 
 setup(
 	name='domaincheck-fork',
-	version='0.2',
+	version='0.3',
 	description='check security aspects of a second-level domain name',
 	keywords='CAA DMARC DNS DNSKEY DNSSEC MTA-STS SPF TLS-RPT',
 	author='Jan Schaumann, Zuza Slawik',
