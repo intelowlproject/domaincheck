@@ -17,7 +17,7 @@ EXIT_FAILURE = 1
 EXIT_SUCCESS = 0
 
 PROGNAME = 'domaincheck'
-VERSION = '0.4'
+VERSION = '0.5'
 
 # A data structure to hold our findings.
 # This conveniently serializes directly to JSON.
@@ -202,7 +202,7 @@ def lookup(dns_aspect, domain_name, rr, pattern=""):
 
     return True      
 
-def lookup2(dns_aspect, domain_name, rr, pattern=""):
+def lookup2(dns_aspect, domain_name, rr, pattern="", resolver=None):
     result = {}
     data = None
 
@@ -212,10 +212,8 @@ def lookup2(dns_aspect, domain_name, rr, pattern=""):
         return
 
     try:
-        r = dns.resolver.Resolver()
-        r.timeout = 1
-        r.lifetime = 1
-        r.nameservers = ["8.8.8.8"]
+        print("lookup2: resolver=", resolver)
+        r = getResolver(resolver)
         data = r.resolve(domain_name, rr)
     except dns.resolver.LifetimeTimeout:
         result[domain_name]['timeout'] = True
@@ -249,12 +247,13 @@ def performAllChecks(domain):
         config = LOOKUPS[key]
         lookup(key, config['domain_prefix'] + domain,
                config['rr'], config['pattern'])
-def performAllChecks2(domain):
+def performAllChecks2(domain, resolver):
     result={}
+    print("performAllChecks2: resolver=", resolver)
     for key in LOOKUPS.keys():
         config = LOOKUPS[key]
         result[key]=lookup2(key, config['domain_prefix'] + domain,
-               config['rr'], config['pattern'])
+               config['rr'], config['pattern'], resolver)
     return(result)
 
 def printCsv(domain, lineNum):
@@ -388,16 +387,15 @@ def verbose(msg, level=1):
 ###
 def main(domains, lookup_types=None, output_format='json', resolver=None, verbosity=0):
         
-        global LOOKUPS_WANTED, OUTPUT_FORMAT, RESOLVER, VERBOSITY
+        global LOOKUPS_WANTED, OUTPUT_FORMAT, VERBOSITY
         LOOKUPS_WANTED = lookup_types or ['all']
         OUTPUT_FORMAT = output_format
-        RESOLVER = getResolver(resolver)
         VERBOSITY = verbosity
         result= {}
         for domain in domains:
             verbose(f"Checking domain '{domain}'...")
             if 'all' in LOOKUPS_WANTED:
-                result[domain]=performAllChecks2(domain)
+                result[domain]=performAllChecks2(domain, resolver)
             else:
                 for l in LOOKUPS_WANTED:
                     config = LOOKUPS[l]
